@@ -19,7 +19,7 @@ from botorch.fit import fit_gpytorch_model
 from botorch.models import SingleTaskGP
 from botorch.models import FixedNoiseGP
 import matplotlib.pyplot as plt
-from matplotlib import cm
+from matplotlib import cm, ticker, colors
 print('Libraries imported')
 
 # %%
@@ -34,14 +34,19 @@ n_variables = 2
 f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/2_variables_result/'
 with open(f_path + 'full_scan.csv') as f:
     full_scan = np.loadtxt(f, delimiter=',').reshape(n_h_emc, n_cte_emc, n_variables+1)
-n_train_init = 10
-train_data = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))][None]
-while len(train_data)<n_train_init:
-    temp = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))]
-    if temp not in train_data:
-        train_data = np.insert(train_data, -1, temp, axis=0)
+n_train_init = 3
+
+# Ramdon selection
+# train_data = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))][None]
+# while len(train_data)<n_train_init:
+#     temp = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))]
+#     if temp not in train_data:
+#         train_data = np.insert(train_data, -1, temp, axis=0)
+
+# Specific selection
+train_data = full_scan[(0, 20), (20, 0)]
+
 cte_emc, h_emc = np.meshgrid(full_scan[0, :, 1]/10, full_scan[:, 0, 0])
-design_domain = torch.as_tensor(full_scan[:, :, 0:n_variables], device=device, dtype=dtype)
 fig, ax = plt.subplots()
 cs = ax.contourf(cte_emc, h_emc, abs(full_scan[:, :, -1])*1000, levels = np.power(10, np.linspace(-1.5, 1.5, 31)), 
                 locator=ticker.LogLocator(), cmap=cm.PuBu)
@@ -51,7 +56,9 @@ cbar1.set_label('Absolute warpage (um)')
 ax.set_title('Absolute warpage mapping (um)')
 ax.set_xlabel('EMC CTE (ppm)')
 ax.set_ylabel('EMC thickness (um)')
-ax.scatter(train_data[:, 1]/10, train_data[:, 0], marker='*', c='green')
+ax.scatter(train_data[:, 1]/10, train_data[:, 0], marker='.', c='green', s=100)
+ax.set_xlim(7.95, 12.05)
+ax.set_ylim(545, 955)
 print('Initial data loaded')
 
 # %%
@@ -59,13 +66,17 @@ print('Initial data loaded')
 acqf_para_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 directory_list = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '1']
 for j in range(len(acqf_para_list)):
+
     # Create and change directory accordingly
-    fr_path = '/ucb_'+directory_list[j]+'/5/'
+    fr_path = 'Specific_selection/Right_bottom_two_diagonal/ucb_'+directory_list[j]+'/'
     print(f_path+fr_path)
+
     acqf_para = acqf_para_list[j]
+    print('Acquisition parameter = ', acqf_para)
     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device('cpu')
     dtype = torch.double
+    design_domain = torch.as_tensor(full_scan[:, :, 0:n_variables], device=device, dtype=dtype)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
     train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
     train_y = train_y_origin**2
@@ -128,8 +139,6 @@ for j in range(len(acqf_para_list)):
     np.savetxt(f_path+fr_path+'Optimization_loop.csv', optim_result.cpu().numpy(), delimiter=',')
     print('Bayesian loop completed')
 
-    import matplotlib.pyplot as plt
-    from matplotlib import cm, ticker, colors
     fig, ax = plt.subplots()
     cs = ax.contourf(cte_emc, h_emc, abs(full_scan[:, :, -1])*1000, levels = np.power(10, np.linspace(-1.5, 1.5, 31)), 
                     locator=ticker.LogLocator(), cmap=cm.PuBu)
@@ -139,7 +148,7 @@ for j in range(len(acqf_para_list)):
     ax.set_title('Absolute warpage mapping (um)')
     ax.set_xlabel('EMC CTE (ppm)')
     ax.set_ylabel('EMC thickness (um)')
-    ax.scatter(train_data[:, 1]/10, train_data[:, 0], marker='*', c='green')
+    ax.scatter(train_data[:, 1]/10, train_data[:, 0], marker='.', c='green')
     x1_plot = train_x.numpy()[10:, 1]/10
     x2_plot = train_x.numpy()[10:, 0]
     c_plot = np.arange(1, len(x1_plot)+1)
@@ -148,7 +157,7 @@ for j in range(len(acqf_para_list)):
     cbar2.set_ticks([1, 20, 40, 60, 80, 100])
     cbar2.set_label('Iteration')
     ax.set_xlim(7.95, 12.05)
-    ax.set_ylim(540, 950)
+    ax.set_ylim(545, 955)
     plt.show()
     fig.savefig(f_path+fr_path+'Optimization_loop.jpg', dpi=600)
 
