@@ -52,7 +52,9 @@ n_train_init = 32
 # Specific selection
 x1, x2, x3, x4, x5 = np.mgrid[0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j]
 points = np.hstack((x1.reshape(32, 1), x2.reshape(32, 1), x3.reshape(32, 1), x4.reshape(32, 1), x5.reshape(32, 1))).transpose()
-train_data = full_scan[points.astype(int)[0], points.astype(int)[1], points.astype(int)[2], points.astype(int)[3], points.astype(int)[4]]
+train_data_32 = full_scan[points.astype(int)[0], points.astype(int)[1], points.astype(int)[2], points.astype(int)[3], points.astype(int)[4]]
+train_data_4 = train_data_32[np.random.randint(32, size=4)]
+
 print('Initial data loaded')
 
 # %%
@@ -65,12 +67,13 @@ dtype = torch.double
 design_domain = torch.as_tensor(full_scan[:, :, :, :, :, 0:n_variables], device=device, dtype=dtype)
 design_domain_flattened = design_domain.flatten(0, -2)
 
-for j in range(10, 11):
+for j in range(9, 10):
+#for j in range(len(acqf_para_list)):
 
     # Create and change directory accordingly
-    fr_path_c = 'Specific_selection\\min_max_32\\ucb_'+directory_list[j]+'\\'
+    fr_path_c = 'Specific_selection\\min_max_4\\ucb_'+directory_list[j]+'\\'
     os.makedirs(f_path_c+fr_path_c)
-    fr_path = 'Specific_selection/min_max_32/ucb_'+directory_list[j]+'/'
+    fr_path = 'Specific_selection/min_max_4/ucb_'+directory_list[j]+'/'
     print(f_path+fr_path)
 
     acqf_para = acqf_para_list[j]
