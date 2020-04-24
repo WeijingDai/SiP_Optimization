@@ -34,26 +34,26 @@ n_variables = 5
 f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/5_variables_result/'
 f_path_c = 'C:\\Users\\weijing\\Documents\\Nutstore\Abaqus_warpage_result\\5_variables_result\\'
 with open(f_path + 'full_scan.csv') as f:
-    full_scan = np.loadtxt(f, delimiter=',').reshape(n_h_die, n_h_adhesive, n_h_sub, n_h_emc, n_cte_emc, n_variables+1)
-
+    full_scan = np.loadtxt(f, delimiter=',')
+full_scan[:, 0] = (full_scan[:, 0]-200)/30
+full_scan[:, 1] = (full_scan[:, 1]-20)/5
+full_scan[:, 2] = (full_scan[:, 2]-200)/25
+full_scan[:, 3] = (full_scan[:, 3]-550)/100
+full_scan[:, 4] = (full_scan[:, 4]-8)/1
 # %%
-result = full_scan[:, :, :, :, :, -1].flatten()*1000
+result = full_scan[:, -1]
 fig, ax = plt.subplots()
 ax.hist(result, bins=25)
 # %%
-n_train_init = 32
+n_train_init = 2
 # Ramdon selection
-# train_data = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))][None]
-# while len(train_data)<n_train_init:
-#     temp = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))]
-#     if temp not in train_data:
-#         train_data = np.insert(train_data, -1, temp, axis=0)
+train_data = full_scan[random.sample(range(0, len(result)), n_train_init)]
 
 # Specific selection
-x1, x2, x3, x4, x5 = np.mgrid[0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j]
-points = np.hstack((x1.reshape(32, 1), x2.reshape(32, 1), x3.reshape(32, 1), x4.reshape(32, 1), x5.reshape(32, 1))).transpose()
-train_data_32 = full_scan[points.astype(int)[0], points.astype(int)[1], points.astype(int)[2], points.astype(int)[3], points.astype(int)[4]]
-train_data_4 = train_data_32[np.random.randint(32, size=4)]
+# x1, x2, x3, x4, x5 = np.mgrid[0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j]
+# points = np.hstack((x1.reshape(32, 1), x2.reshape(32, 1), x3.reshape(32, 1), x4.reshape(32, 1), x5.reshape(32, 1))).transpose()
+# train_data_32 = full_scan[points.astype(int)[0], points.astype(int)[1], points.astype(int)[2], points.astype(int)[3], points.astype(int)[4]]
+# train_data_4 = train_data_32[np.random.randint(32, size=4)]
 
 print('Initial data loaded')
 
@@ -64,52 +64,55 @@ directory_list = ['001', '01', '02', '03', '04', '05', '06', '07', '08', '09', '
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device('cpu')
 dtype = torch.double
-design_domain = torch.as_tensor(full_scan[:, :, :, :, :, 0:n_variables], device=device, dtype=dtype)
-design_domain_flattened = design_domain.flatten(0, -2)
+design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtype=dtype)
 
-for j in range(9, 10):
+for j in range(1):
 #for j in range(len(acqf_para_list)):
 
     # Create and change directory accordingly
-    fr_path_c = 'Specific_selection\\min_max_4\\ucb_'+directory_list[j]+'\\'
-    os.makedirs(f_path_c+fr_path_c)
-    fr_path = 'Specific_selection/min_max_4/ucb_'+directory_list[j]+'/'
+    fr_path_c = 'Random_selection\\1_init\\ucb_'+directory_list[j]+'\\'
+    if not os.path.exists(f_path_c+fr_path_c):
+        os.makedirs(f_path_c+fr_path_c)
+    fr_path = 'Random_selection/1_init/ucb_'+directory_list[j]+'/'
     print(f_path+fr_path)
-
-    acqf_para = acqf_para_list[j]
+    acqf_para = 1
     print('Acquisition parameter = ', acqf_para)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
-    train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
-    train_y = train_y_origin**2
+    train_x_total = torch.as_tensor(full_scan[:, 0:-1], dtype=dtype, device=device)
+    train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
+    train_y = torch.log(train_y_origin**2 + 1e-16)
     best_observed_value = train_y.min().item()
 
     verbose = False
 
     # Bayesian loop
-    Trials = 100
+    Trials = 10
     for trial in range(1, Trials+1):
 
         #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
         #print(f"Current best: {best_observed_value} ", end="\n")
 
         # fit the model
-        model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.000001)).to(train_x)
+        model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.1)).to(train_x)
         mll = ExactMarginalLogLikelihood(model.likelihood, model)
         fit_gpytorch_model(mll)
-
+        fig, ax = plt.subplots(ncols=3)
+        ax[0].hist(model.posterior(train_x_total).variance.detach().numpy())
+        ax[1].hist(model.posterior(train_x_total).mean.detach().numpy())
         # for best_f, we use the best observed values as an approximation
-        # EI = ExpectedImprovement(model = model, best_f = -train_y.min() - acqf_para,)
-        UCB = UpperConfidenceBound(model = model, beta = acqf_para)
+        EI = ExpectedImprovement(model = model, best_f = -train_y.min() - acqf_para,)
+        # UCB = UpperConfidenceBound(model = model, beta = acqf_para)
         # PI = ProbabilityOfImprovement(model = model, best_f = -train_y.min() - acqf_para,)
         
         # Evaluate acquisition function over the discrete domain of parameters
-        acqf = UCB(design_domain.unsqueeze(n_variables))
+        acqf = EI(design_domain.unsqueeze(-2))
+        ax[2].hist(acqf.detach().numpy())
+        plt.show()
         np.savetxt(f_path+fr_path+'Acqf_matrix_' + str(trial) + '.csv', acqf.detach().cpu().numpy().flatten(), delimiter=',')
-        acqf_flattened = acqf.flatten()
-        acqf_sorted = torch.argsort(acqf.flatten(), descending=True)
+        acqf_sorted = torch.argsort(acqf, descending=True)
         acqf_max = acqf_sorted[0].unsqueeze(0)
         for j in range(1, 10):
-            if acqf_flattened[acqf_max[0]] > acqf_flattened[acqf_sorted[j]]:
+            if acqf[acqf_max[0]] > acqf[acqf_sorted[j]]:
                 break
             else:
                 acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
@@ -127,13 +130,14 @@ for j in range(9, 10):
         #         break
         #     else:
         #         acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
+        print(acqf_max.numpy())
         candidate_id = acqf_max[torch.randint(len(acqf_max), size=(1, ))]
-        candidate = design_domain_flattened[candidate_id]
+        candidate = design_domain[candidate_id]
         #print(candidate.tolist())
         new_y = result[candidate_id]
         #print(new_y)
         train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)
-        train_new_y = train_new_y_origin**2
+        train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
         # update training points
         train_x = torch.cat([train_x, candidate])
         train_y = torch.cat([train_y, train_new_y])
@@ -155,17 +159,11 @@ for j in range(9, 10):
     np.savetxt(f_path+fr_path+'Optimization_loop.csv', optim_result.cpu().numpy(), delimiter=',')
     print('Bayesian loop completed')
     fig1, ax1 = plt.subplots()
-    y_plot = abs(train_y_origin.numpy())*1000
+    y_plot = abs(train_y_origin.numpy())
     l1 = ax1.plot(y_plot, marker='.')
     ax1.set_yscale('log')
-    #ax1.set_ylim(10**-(3.7), 10**-(1.6))
     ax1.set_xlabel('Loop iteration', fontsize='large')
     ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
     fig1.savefig(f_path+fr_path+'Warpage_reduction.jpg', dpi=600)
-
-
-# %%
-x = torch.tensor([0, 4])
-x1, x2, x3, x4, x5 = torch.meshgrid(x, x, x, x, x)
 
 # %%
