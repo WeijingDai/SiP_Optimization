@@ -79,8 +79,8 @@ for exp_run in range(1):
     print('Acquisition parameter = ', acqf_para)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
     train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
-    # train_y = train_y_origin**2
-    train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
+    train_y = train_y_origin**2
+    # train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
     best_observed_value = train_y.min().item()
 
     verbose = False
@@ -116,8 +116,8 @@ for exp_run in range(1):
         candidate = design_domain[candidate_id]
         new_y = result[candidate_id]
         train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
-        # train_new_y = train_new_y_origin**2
-        train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
+        train_new_y = train_new_y_origin**2
+        # train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
         # update training points
         train_x = torch.cat([train_x, candidate])
         train_y = torch.cat([train_y, train_new_y])
