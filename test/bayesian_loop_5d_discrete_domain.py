@@ -34,14 +34,13 @@ n_h_die = 5
 n_variables = 5
 with open('./full_scan_5d.csv') as f:
     full_scan = np.loadtxt(f, delimiter=',')
-full_scan[:, 0] = (full_scan[:, 0]-200)/30
-full_scan[:, 1] = (full_scan[:, 1]-20)/5
-full_scan[:, 2] = (full_scan[:, 2]-200)/25
-full_scan[:, 3] = (full_scan[:, 3]-550)/100
-full_scan[:, 4] = (full_scan[:, 4]-8)/1
-# %%
+# full_scan[:, 0] = (full_scan[:, 0]-200)/30
+# full_scan[:, 1] = (full_scan[:, 1]-20)/5
+# full_scan[:, 2] = (full_scan[:, 2]-200)/25
+# full_scan[:, 3] = (full_scan[:, 3]-550)/100
+# full_scan[:, 4] = (full_scan[:, 4]-8)/1
 result = full_scan[:, -1]
-n_train_init = 10 # Number of initial data
+n_train_init = 2 # Number of initial data
 # Ramdon selection
 train_data = full_scan[random.sample(range(0, len(result)), n_train_init)]
 fig, ax = plt.subplots(ncols=2)
@@ -58,20 +57,29 @@ print('Initial data loaded')
 # %%
 # Implement PyTorch and Bayesian loop
 acqf_para_list = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-directory_list = ['001', '01', '02', '03', '04', '05', '06', '07', '08', '09', '1']
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device('cpu')
 dtype = torch.double
+full_scan[:, 0] = (full_scan[:, 0]-200)/30
+full_scan[:, 1] = (full_scan[:, 1]-20)/5
+full_scan[:, 2] = (full_scan[:, 2]-200)/25
+full_scan[:, 3] = (full_scan[:, 3]-550)/100
+full_scan[:, 4] = (full_scan[:, 4]-8)/1
+train_data[:, 0] = (train_data[:, 0]-200)/30
+train_data[:, 1] = (train_data[:, 1]-20)/5
+train_data[:, 2] = (train_data[:, 2]-200)/25
+train_data[:, 3] = (train_data[:, 3]-550)/100
+train_data[:, 4] = (train_data[:, 4]-8)/1
 design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtype=dtype)
 
 for exp_run in range(1):
 #for j in range(len(acqf_para_list)):
 
-    acqf_para = 10
+    acqf_para = 100
     print('Acquisition parameter = ', acqf_para)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
-    train_x_total = torch.as_tensor(full_scan[:, 0:-1], dtype=dtype, device=device)
     train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
+    # train_y = train_y_origin**2
     train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
     best_observed_value = train_y.min().item()
 
@@ -85,7 +93,7 @@ for exp_run in range(1):
         #print(f"Current best: {best_observed_value} ", end="\n")
 
         # fit the model
-        model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.000001)).to(train_x)
+        model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.1)).to(train_x)
         mll = ExactMarginalLogLikelihood(model.likelihood, model)
         fit_gpytorch_model(mll)
 
@@ -108,6 +116,7 @@ for exp_run in range(1):
         candidate = design_domain[candidate_id]
         new_y = result[candidate_id]
         train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
+        # train_new_y = train_new_y_origin**2
         train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
         # update training points
         train_x = torch.cat([train_x, candidate])
@@ -130,8 +139,9 @@ for exp_run in range(1):
     print('Bayesian loop completed')
     fig1, ax1 = plt.subplots()
     y_plot = abs(train_y_origin.numpy())
-    l1 = ax1.plot(y_plot, marker='.')
+    ax1.plot(y_plot, marker='.')
     ax1.set_yscale('log')
+    ax1.set_ylim(auto=True)
     ax1.set_xlabel('Loop iteration', fontsize='large')
     ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # %%
