@@ -32,8 +32,6 @@ n_h_sub = 5
 n_h_adhesive = 5
 n_h_die = 5
 n_variables = 5
-#f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/5_variables_result/'
-#f_path_c = 'C:\\Users\\weijing\\Documents\\Nutstore\Abaqus_warpage_result\\5_variables_result\\'
 with open('./full_scan_5d.csv') as f:
     full_scan = np.loadtxt(f, delimiter=',')
 full_scan[:, 0] = (full_scan[:, 0]-200)/30
@@ -69,12 +67,6 @@ design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtyp
 for exp_run in range(1):
 #for j in range(len(acqf_para_list)):
 
-    # Create and change directory accordingly
-    # fr_path_c = 'Random_selection\\1_init\\ucb_'+directory_list[j]+'\\'
-    # if not os.path.exists(f_path_c+fr_path_c):
-    #     os.makedirs(f_path_c+fr_path_c)
-    # fr_path = 'Random_selection/1_init/ucb_'+directory_list[j]+'/'
-    # print(f_path+fr_path)
     acqf_para = 10
     print('Acquisition parameter = ', acqf_para)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
@@ -96,9 +88,7 @@ for exp_run in range(1):
         model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.000001)).to(train_x)
         mll = ExactMarginalLogLikelihood(model.likelihood, model)
         fit_gpytorch_model(mll)
-        #fig, ax = plt.subplots(ncols=3)
-        #ax[0].hist(model.posterior(train_x_total).variance.detach().numpy())
-        #ax[1].hist(model.posterior(train_x_total).mean.detach().numpy())
+
         # for best_f, we use the best observed values as an approximation
         # EI = ExpectedImprovement(model = model, best_f = -train_y.min() - acqf_para,)
         UCB = UpperConfidenceBound(model = model, beta = acqf_para)
@@ -106,9 +96,6 @@ for exp_run in range(1):
         
         # Evaluate acquisition function over the discrete domain of parameters
         acqf = UCB(design_domain.unsqueeze(-2))
-        #ax[2].hist(acqf.detach().numpy())
-        #plt.show()
-        #np.savetxt(f_path+fr_path+'Acqf_matrix_' + str(trial) + '.csv', acqf.detach().cpu().numpy().flatten(), delimiter=',')
         acqf_sorted = torch.argsort(acqf, descending=True)
         acqf_max = acqf_sorted[0].unsqueeze(0)
         for j in range(1, 10):
@@ -116,26 +103,10 @@ for exp_run in range(1):
                 break
             else:
                 acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
-        # for j in range(1, 10):
-        #     if acqf[acqf_max[0]//(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc), 
-        #             acqf_max[0]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)//(n_h_sub*n_h_emc*n_cte_emc), 
-        #             acqf_max[0]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)//(n_h_emc*n_cte_emc), 
-        #             acqf_max[0]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)%(n_h_emc*n_cte_emc)//n_cte_emc, 
-        #             acqf_max[0]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)%(n_h_emc*n_cte_emc)%n_cte_emc] > \
-        #         acqf[acqf_sorted[j]//(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc),
-        #              acqf_sorted[j]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)//(n_h_sub*n_h_emc*n_cte_emc),
-        #              acqf_sorted[j]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)//(n_h_emc*n_cte_emc), 
-        #              acqf_sorted[j]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)%(n_h_emc*n_cte_emc)//n_cte_emc,
-        #              acqf_sorted[j]%(n_h_adhesive*n_h_sub*n_h_emc*n_cte_emc)%(n_h_sub*n_h_emc*n_cte_emc)%(n_h_emc*n_cte_emc)%n_cte_emc]:
-        #         break
-        #     else:
-        #         acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
         print(acqf_max.numpy())
         candidate_id = acqf_max[torch.randint(len(acqf_max), size=(1, ))]
         candidate = design_domain[candidate_id]
-        #print(candidate.tolist())
         new_y = result[candidate_id]
-        #print(new_y)
         train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
         train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
         # update training points
@@ -156,7 +127,6 @@ for exp_run in range(1):
         else:
             print(".", end="")
     optim_result = torch.cat([train_x, train_y_origin, train_y], 1)
-    # np.savetxt(f_path+fr_path+'Optimization_loop.csv', optim_result.cpu().numpy(), delimiter=',')
     print('Bayesian loop completed')
     fig1, ax1 = plt.subplots()
     y_plot = abs(train_y_origin.numpy())
@@ -164,6 +134,4 @@ for exp_run in range(1):
     ax1.set_yscale('log')
     ax1.set_xlabel('Loop iteration', fontsize='large')
     ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
-    # fig1.savefig(f_path+fr_path+'Warpage_reduction.jpg', dpi=600)
-
 # %%
