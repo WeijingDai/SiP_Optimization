@@ -34,11 +34,11 @@ n_h_die = 5
 n_variables = 5
 with open('./full_scan_5d.csv') as f:
     full_scan = np.loadtxt(f, delimiter=',')
-# full_scan[:, 0] = (full_scan[:, 0]-200)/30
-# full_scan[:, 1] = (full_scan[:, 1]-20)/5
-# full_scan[:, 2] = (full_scan[:, 2]-200)/25
-# full_scan[:, 3] = (full_scan[:, 3]-550)/100
-# full_scan[:, 4] = (full_scan[:, 4]-8)/1
+full_scan[:, 0] = (full_scan[:, 0]-200)/30
+full_scan[:, 1] = (full_scan[:, 1]-20)/5
+full_scan[:, 2] = (full_scan[:, 2]-200)/25
+full_scan[:, 3] = (full_scan[:, 3]-550)/100
+full_scan[:, 4] = (full_scan[:, 4]-8)/1
 result = full_scan[:, -1]
 n_train_init = 2 # Number of initial data
 # Ramdon selection
@@ -46,6 +46,7 @@ train_data = full_scan[random.sample(range(0, len(result)), n_train_init)]
 fig, ax = plt.subplots(ncols=2)
 ax[0].hist(result, bins=25)
 ax[1].hist(train_data[:,-1], bins=n_train_init)
+
 # Specific selection
 # x1, x2, x3, x4, x5 = np.mgrid[0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j, 0:n_variables-1:2j]
 # points = np.hstack((x1.reshape(32, 1), x2.reshape(32, 1), x3.reshape(32, 1), x4.reshape(32, 1), x5.reshape(32, 1))).transpose()
@@ -60,27 +61,17 @@ acqf_para_list = [0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device('cpu')
 dtype = torch.double
-full_scan[:, 0] = (full_scan[:, 0]-200)/30
-full_scan[:, 1] = (full_scan[:, 1]-20)/5
-full_scan[:, 2] = (full_scan[:, 2]-200)/25
-full_scan[:, 3] = (full_scan[:, 3]-550)/100
-full_scan[:, 4] = (full_scan[:, 4]-8)/1
-train_data[:, 0] = (train_data[:, 0]-200)/30
-train_data[:, 1] = (train_data[:, 1]-20)/5
-train_data[:, 2] = (train_data[:, 2]-200)/25
-train_data[:, 3] = (train_data[:, 3]-550)/100
-train_data[:, 4] = (train_data[:, 4]-8)/1
 design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtype=dtype)
 
 for exp_run in range(1):
 #for j in range(len(acqf_para_list)):
 
-    acqf_para = 100
+    acqf_para = 1
     print('Acquisition parameter = ', acqf_para)
     train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
     train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
-    train_y = train_y_origin**2
-    # train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
+    # train_y = train_y_origin**2
+    train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
     best_observed_value = train_y.min().item()
 
     verbose = False
@@ -116,8 +107,8 @@ for exp_run in range(1):
         candidate = design_domain[candidate_id]
         new_y = result[candidate_id]
         train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
-        train_new_y = train_new_y_origin**2
-        # train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
+        # train_new_y = train_new_y_origin**2
+        train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
         # update training points
         train_x = torch.cat([train_x, candidate])
         train_y = torch.cat([train_y, train_new_y])
@@ -145,3 +136,5 @@ for exp_run in range(1):
     ax1.set_xlabel('Loop iteration', fontsize='large')
     ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # %%
+
+
