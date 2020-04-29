@@ -1,7 +1,6 @@
 # %%
 # Import Botorch library
 import torch
-import os
 import numpy as np
 from botorch.models.gpytorch import GPyTorchModel
 from gpytorch.distributions import MultivariateNormal
@@ -63,78 +62,78 @@ device = torch.device('cpu')
 dtype = torch.double
 design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtype=dtype)
 
-for exp_run in range(1):
+# for exp_run in range(1):
 #for j in range(len(acqf_para_list)):
 
-    acqf_para = 1
-    print('Acquisition parameter = ', acqf_para)
-    train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
-    train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
-    # train_y = train_y_origin**2
-    train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
+acqf_para = 1
+train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
+train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
+# train_y = train_y_origin**2
+# train_y = torch.log(train_y_origin**2 + 1e-16) # To find y closet to zero 
+train_y = train_y_origin.abs()
+best_observed_value = train_y.min().item()
+
+verbose = False
+
+# Bayesian loop
+Trials = 50
+for trial in range(1, Trials+1):
+
+    print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
+    print(f"Current best: {best_observed_value} ", end="\n")
+
+    # fit the model
+    model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.1)).to(train_x)
+    mll = ExactMarginalLogLikelihood(model.likelihood, model)
+    fit_gpytorch_model(mll)
+
+    # for best_f, we use the best observed values as an approximation
+    # EI = ExpectedImprovement(model = model, best_f = -train_y.min() - acqf_para,)
+    UCB = UpperConfidenceBound(model = model, beta = acqf_para)
+    # PI = ProbabilityOfImprovement(model = model, best_f = -train_y.min() - acqf_para,)
+    
+    # Evaluate acquisition function over the discrete domain of parameters
+    acqf = UCB(design_domain.unsqueeze(-2))
+    acqf_sorted = torch.argsort(acqf, descending=True)
+    acqf_max = acqf_sorted[0].unsqueeze(0)
+    for j in range(1, 10):
+        if acqf[acqf_max[0]] > acqf[acqf_sorted[j]]:
+            break
+        else:
+            acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
+    print(acqf_max.numpy())
+    candidate_id = acqf_max[torch.randint(len(acqf_max), size=(1, ))]
+    candidate = design_domain[candidate_id]
+    new_y = result[candidate_id]
+    train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
+    # train_new_y = train_new_y_origin**2
+    train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
+    # update training points
+    train_x = torch.cat([train_x, candidate])
+    train_y = torch.cat([train_y, train_new_y])
+    train_y_origin = torch.cat([train_y_origin, train_new_y_origin])
+
+    current_value = train_new_y.item()
     best_observed_value = train_y.min().item()
 
-    verbose = False
-
-    # Bayesian loop
-    Trials = 50
-    for trial in range(1, Trials+1):
-
-        #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
-        #print(f"Current best: {best_observed_value} ", end="\n")
-
-        # fit the model
-        model = FixedNoiseGP(train_x, -train_y, train_Yvar=torch.full_like(train_y, 0.1)).to(train_x)
-        mll = ExactMarginalLogLikelihood(model.likelihood, model)
-        fit_gpytorch_model(mll)
-
-        # for best_f, we use the best observed values as an approximation
-        # EI = ExpectedImprovement(model = model, best_f = -train_y.min() - acqf_para,)
-        UCB = UpperConfidenceBound(model = model, beta = acqf_para)
-        # PI = ProbabilityOfImprovement(model = model, best_f = -train_y.min() - acqf_para,)
-        
-        # Evaluate acquisition function over the discrete domain of parameters
-        acqf = UCB(design_domain.unsqueeze(-2))
-        acqf_sorted = torch.argsort(acqf, descending=True)
-        acqf_max = acqf_sorted[0].unsqueeze(0)
-        for j in range(1, 10):
-            if acqf[acqf_max[0]] > acqf[acqf_sorted[j]]:
-                break
-            else:
-                acqf_max = torch.cat((acqf_max, acqf_sorted[j].unsqueeze(0)))
-        print(acqf_max.numpy())
-        candidate_id = acqf_max[torch.randint(len(acqf_max), size=(1, ))]
-        candidate = design_domain[candidate_id]
-        new_y = result[candidate_id]
-        train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
-        # train_new_y = train_new_y_origin**2
-        train_new_y = torch.log(train_new_y_origin**2 + 1e-16)
-        # update training points
-        train_x = torch.cat([train_x, candidate])
-        train_y = torch.cat([train_y, train_new_y])
-        train_y_origin = torch.cat([train_y_origin, train_new_y_origin])
-
-        current_value = train_new_y.item()
-        best_observed_value = train_y.min().item()
-
-        if False:
-            print(
-                f"\nTrial {trial:>2}: current_value = "
-                f"{current_value}, "
-                f"best_value = "
-                f"{best_observed_value} ", end=".\n"
-                )
-        else:
-            print(".", end="")
-    optim_result = torch.cat([train_x, train_y_origin, train_y], 1)
-    print('Bayesian loop completed')
-    fig1, ax1 = plt.subplots()
-    y_plot = abs(train_y_origin.numpy())
-    ax1.plot(y_plot, marker='.')
-    ax1.set_yscale('log')
-    ax1.set_ylim(auto=True)
-    ax1.set_xlabel('Loop iteration', fontsize='large')
-    ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
+    if False:
+        print(
+            f"\nTrial {trial:>2}: current_value = "
+            f"{current_value}, "
+            f"best_value = "
+            f"{best_observed_value} ", end=".\n"
+            )
+    else:
+        print(".", end="")
+optim_result = torch.cat([train_x, train_y_origin, train_y], 1)
+print('Bayesian loop completed')
+fig1, ax1 = plt.subplots()
+y_plot = abs(train_y_origin.numpy())
+ax1.plot(y_plot, marker='.')
+ax1.set_yscale('log')
+ax1.set_ylim(auto=True)
+ax1.set_xlabel('Loop iteration', fontsize='large')
+ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # %%
 
 
