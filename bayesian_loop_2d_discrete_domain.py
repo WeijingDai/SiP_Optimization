@@ -27,9 +27,6 @@ print('Libraries imported')
 import random
 n_h_emc = 21
 n_cte_emc = 21
-n_h_sub = 5
-n_h_adhesive = 5
-n_h_die = 5
 n_variables = 2
 #f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/2_variables_result/'
 with open('./full_scan_2d.csv') as f:
