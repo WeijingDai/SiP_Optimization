@@ -31,20 +31,20 @@ n_h_sub = 5
 n_h_adhesive = 5
 n_h_die = 5
 n_variables = 2
-f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/2_variables_result/'
-with open(f_path + 'full_scan.csv') as f:
+#f_path = 'C:/Users/weijing/Documents/Nutstore/Abaqus_warpage_result/2_variables_result/'
+with open('./full_scan_2d.csv') as f:
     full_scan = np.loadtxt(f, delimiter=',').reshape(n_h_emc, n_cte_emc, n_variables+1)
 n_train_init = 3
 
 # Ramdon selection
-# train_data = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))][None]
-# while len(train_data)<n_train_init:
-#     temp = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))]
-#     if temp not in train_data:
-#         train_data = np.insert(train_data, -1, temp, axis=0)
+train_data = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))][None]
+while len(train_data)<n_train_init:
+    temp = full_scan[(random.randint(0, n_h_emc-1), random.randint(0, n_cte_emc-1))]
+    if temp not in train_data:
+        train_data = np.insert(train_data, -1, temp, axis=0)
 
 # Specific selection
-train_data = full_scan[(0, 20), (20, 0)]
+# train_data = full_scan[(0, 20), (20, 0)]
 
 cte_emc, h_emc = np.meshgrid(full_scan[0, :, 1]/10, full_scan[:, 0, 0])
 fig, ax = plt.subplots()
