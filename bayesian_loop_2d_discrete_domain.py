@@ -92,7 +92,7 @@ print('Initial data loaded')
 # fr_path = 'Specific_selection/Right_bottom_two_diagonal/ucb_'+directory_list[j]+'/'
 # print(f_path+fr_path)
 
-acqf_para = 0.0
+acqf_para = 1000.0
 print('Acquisition parameter = ', acqf_para)
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device('cpu')
@@ -101,12 +101,12 @@ design_domain = torch.as_tensor(full_scan_norm[:, :, 0:n_variables], device=devi
 train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
 train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
 train_y = train_y_origin**2
-best_observed_value = train_y.min().item()
+best_observed_value = train_y.min()
 
 verbose = False
 # %%
 # Bayesian loop
-Trials = 20
+Trials = 30
 for trial in range(1, Trials+1):
 
     #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
@@ -122,7 +122,7 @@ for trial in range(1, Trials+1):
 
     # for best_f, we use the best observed values as an approximation
     # EI = ExpectedImprovement(model = model, best_f = -train_y.min(),)
-    # print(acqf_para)
+    print(acqf_para)
     UCB = UpperConfidenceBound(model = model, beta = acqf_para)
     # PI = ProbabilityOfImprovement(model = model, best_f = -train_y.min(),)
     
@@ -156,11 +156,13 @@ for trial in range(1, Trials+1):
     train_y = torch.cat([train_y, train_new_y])
     train_y_origin = torch.cat([train_y_origin, train_new_y_origin])
 
-    current_value = train_new_y.item()
-    # if current_value < best_observed_value:
-    #     best_observed_value = current_value
-    # else:
-    #     acqf_para = acqf_para * 0.9
+    train_delta = train_new_y - best_observed_value
+    if train_delta < 0:
+        best_observed_value = train_new_y.item()
+        acqf_para = acqf_para * 0.5
+    else:
+        if torch.exp(-train_delta/acqf_para) > torch.rand(1):
+            acqf_para = acqf_para * 0.5
     
 
     if False:
