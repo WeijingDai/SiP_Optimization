@@ -159,10 +159,10 @@ for trial in range(1, Trials+1):
     train_delta = train_new_y - best_observed_value
     if train_delta < 0:
         best_observed_value = train_new_y.item()
-        acqf_para = acqf_para * 0.5
+        acqf_para = acqf_para * 0.9
     else:
         if torch.exp(-train_delta/acqf_para) > torch.rand(1):
-            acqf_para = acqf_para * 0.5
+            acqf_para = acqf_para * 0.9
     
 
     if False:
@@ -283,17 +283,6 @@ ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # # Create and change directory accordingly
 # fig.savefig(f_path+'/ucb_1/1/h_emc_vs_cte_emc_mapping_pixel.jpg', dpi=500, bbox_inches = 'tight')
 ## %%
-
-
-# %%
-    fig = plt.figure(figsize=(10, 7))
-    ax = fig.gca(projection='3d', azim= -60, elev=25)
-    mu = model.posterior(design_domain).mean.detach().squeeze(-1).numpy()
-    sigma = model.posterior(design_domain).variance.detach().squeeze(-1).numpy()
-    ax.plot_surface(cte_emc, h_emc, full_scan[:, :, -1]**2)
-    #ax.plot_surface(cte_emc, h_emc, -mu + 1.96 * sigma, color='orange', alpha = 0.8)
-    #ax.plot_surface(cte_emc, h_emc, -mu - 1.96 * sigma, color='orange')
-    #ax.plot((12., 12.), (750., 750.), (0., 3.5), color='r')
 
 
 # %%
