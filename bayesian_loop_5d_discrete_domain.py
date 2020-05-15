@@ -85,7 +85,7 @@ best_observed_value = torch.sqrt(train_y.min())
 verbose = False
 
 # Bayesian loop
-Trials = 50
+Trials = 1000
 for trial in range(1, Trials+1):
 
     #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
@@ -163,10 +163,14 @@ optim_result = torch.cat([train_x, train_y_origin, train_y], 1)
 print('Bayesian loop completed')
 fig1, ax1 = plt.subplots()
 y_plot = abs(train_y_origin.numpy())
-l1 = ax1.plot(y_plot, marker='.')
+l1 = ax1.plot(y_plot * 1000, marker='.')
 ax1.set_yscale('log')
 ax1.set_xlabel('Loop iteration', fontsize='large')
 ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # fig1.savefig(f_path+fr_path+'Warpage_reduction.jpg', dpi=600)
+
+# %%
+fig, ax = plt.subplots()
+ax.hist(np.array(result, model.posterior(design_domain).mean.detach().numpy().flatten()), bins=25)
 
 # %%
