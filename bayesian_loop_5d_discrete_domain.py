@@ -74,7 +74,7 @@ design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtyp
 #     os.makedirs(f_path_c+fr_path_c)
 # fr_path = 'Random_selection/1_init/ucb_'+directory_list[j]+'/'
 # print(f_path+fr_path)
-acqf_para = 10
+acqf_para = 50
 print('Acquisition parameter = ', acqf_para)
 train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
 train_x_total = torch.as_tensor(full_scan[:, 0:-1], dtype=dtype, device=device)
@@ -85,12 +85,12 @@ best_observed_value = torch.sqrt(train_y.min())
 verbose = False
 
 # Bayesian loop
-Trials = 1000
+Trials = 100
 for trial in range(1, Trials+1):
 
     #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
     #print(f"Current best: {best_observed_value} ", end="\n")
-
+    print(acqf_para)
     # fit the model
     train_mu = train_y.mean()
     train_sig = train_y.std()
@@ -144,6 +144,19 @@ for trial in range(1, Trials+1):
     train_y = torch.cat([train_y, train_new_y])
     train_y_origin = torch.cat([train_y_origin, train_new_y_origin])
 
+    train_delta = train_new_y - best_observed_value
+    if train_delta < 0:
+        best_observed_value = train_new_y.item()
+        if torch.exp(-train_delta/acqf_para) < torch.rand(1):
+            acqf_para = acqf_para * 0.9
+        else:
+            acqf_para = acqf_para * 1.1
+    else:
+        if torch.exp(-train_delta/acqf_para) > torch.rand(1):
+            acqf_para = acqf_para * 0.9
+        else: 
+            acqf_para = acqf_para * 1.1
+
     current_value = train_new_y.item()
     best_observed_value = train_y.min().item()
 
@@ -171,6 +184,6 @@ ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 
 # %%
 fig, ax = plt.subplots()
-ax.hist(np.array(result, model.posterior(design_domain).mean.detach().numpy().flatten()), bins=25)
+ax.scatter(full_scan[:, 4], full_scan[:, -1])
 
 # %%
