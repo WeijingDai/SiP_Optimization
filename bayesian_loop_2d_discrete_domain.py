@@ -81,6 +81,9 @@ ax2.scatter((train_data[:, 1] *  (cte_emc_max - cte_emc_min) + cte_emc_min)/10,
             marker='.', c='green', s=100)
 ax2.set_xlim(7.95, 12.05)
 ax2.set_ylim(545, 955)
+fig3 = plt.figure(figsize=(10, 7))
+ax3 = fig3.gca(projection='3d', azim= -60, elev=25)
+ax3.plot_surface(cte_emc, h_emc, abs(full_scan[:, :, -1])**2, alpha = 0.5)
 print('Initial data loaded')
 
 # %%
@@ -92,25 +95,26 @@ print('Initial data loaded')
 # fr_path = 'Specific_selection/Right_bottom_two_diagonal/ucb_'+directory_list[j]+'/'
 # print(f_path+fr_path)
 
-acqf_para = 1000.0
+acqf_para = 10.0
 print('Acquisition parameter = ', acqf_para)
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device('cpu')
 dtype = torch.double
 design_domain = torch.as_tensor(full_scan_norm[:, :, 0:n_variables], device=device, dtype=dtype)
 train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
-train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
+train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)*1000
 train_y = train_y_origin**2
 best_observed_value = train_y.min()
 
 verbose = False
 # %%
 # Bayesian loop
-Trials = 30
+Trials = 20
 for trial in range(1, Trials+1):
 
-    #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
-    #print(f"Current best: {best_observed_value} ", end="\n")
+    print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
+    print(f"Current best: {best_observed_value} ", end="\n")
+    print(f"Current acquisition parameter: {acqf_para} ", end="\n")
 
     # fit the model
     # model = SingleTaskGP(train_x, -train_y).to(train_x)
@@ -122,7 +126,6 @@ for trial in range(1, Trials+1):
 
     # for best_f, we use the best observed values as an approximation
     # EI = ExpectedImprovement(model = model, best_f = -train_y.min(),)
-    print(acqf_para)
     UCB = UpperConfidenceBound(model = model, beta = acqf_para)
     # PI = ProbabilityOfImprovement(model = model, best_f = -train_y.min(),)
     
@@ -138,18 +141,29 @@ for trial in range(1, Trials+1):
     candidate_id = acqf_max[torch.randint(len(acqf_max), size=(1, ))]
     candidate = design_domain[candidate_id//n_h_emc, candidate_id%n_cte_emc]
     fig = plt.figure(figsize=(10, 7))
-    ax = fig.gca(projection='3d', azim= -60, elev=25)
+    ax = fig.gca(projection='3d', azim=-60, elev=30)
     mu = model.posterior(design_domain).mean.detach().squeeze(-1).numpy()
     sigma = model.posterior(design_domain).variance.detach().squeeze(-1).numpy()
-    ax.plot_surface(cte_emc, h_emc, -mu * train_sig.numpy() + train_mu.numpy(), alpha = 0.5)
-    ax.plot_surface(cte_emc, h_emc, (-mu + 1.96 * sigma) * train_sig.numpy() + train_mu.numpy(), color='orange', alpha = 0.5)
-    ax.plot_surface(cte_emc, h_emc, (-mu - 1.96 * sigma) * train_sig.numpy() + train_mu.numpy(), color='orange', alpha = 0.5)
+    s1 = ax.plot_surface(cte_emc, h_emc, -mu * train_sig.numpy() + train_mu.numpy(), 
+                         alpha = 0.5)
+    s2 = ax.plot_surface(cte_emc, h_emc, (-mu + 1.96 * sigma) * train_sig.numpy() + train_mu.numpy(), 
+                         color='orange', alpha = 0.5)
+    s3 = ax.plot_surface(cte_emc, h_emc, (-mu - 1.96 * sigma) * train_sig.numpy() + train_mu.numpy(), 
+                         color='orange', alpha = 0.5)
+    s4 = ax.plot_surface(cte_emc, h_emc, (abs(full_scan[:, :, -1])*1000)**2, 
+                         color='g', alpha = 0.5)
     ax.plot(((candidate[:, 1] * (cte_emc_max - cte_emc_min) + cte_emc_min)/10, (candidate[:, 1] * (cte_emc_max - cte_emc_min) + cte_emc_min)/10), 
             (candidate[:, 0] * (h_emc_max - h_emc_min) + h_emc_min, candidate[:, 0] * (h_emc_max - h_emc_min) + h_emc_min), 
             ((-mu - 1.96 * sigma).min()* train_sig.numpy() + train_mu.numpy(), (-mu + 1.96 * sigma).max()* train_sig.numpy() + train_mu.numpy()), color='r')
+    ax.scatter((train_x[:,1].numpy() * (cte_emc_max - cte_emc_min) + cte_emc_min)/10, 
+               train_x[:,0].numpy() * (h_emc_max - h_emc_min) + h_emc_min,
+               train_y.numpy().flatten(), color='b', s=20, alpha=1)
+    ax.set_xlabel("EMC CTE (ppm)")
+    ax.set_ylabel("EMC thickness (um)")
+    ax.set_zlabel("Squared warpage value")
     plt.show()
     new_y = full_scan[candidate_id//n_h_emc, candidate_id%n_cte_emc, -1]
-    train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)
+    train_new_y_origin = torch.as_tensor([[new_y]], dtype=dtype, device=device)*1000
     train_new_y = train_new_y_origin**2
     # update training points
     train_x = torch.cat([train_x, candidate])
@@ -157,12 +171,14 @@ for trial in range(1, Trials+1):
     train_y_origin = torch.cat([train_y_origin, train_new_y_origin])
 
     train_delta = train_new_y - best_observed_value
-    if train_delta < 0:
-        best_observed_value = train_new_y.item()
-        acqf_para = acqf_para * 0.9
-    else:
-        if torch.exp(-train_delta/acqf_para) > torch.rand(1):
-            acqf_para = acqf_para * 0.9
+    TA = (Trials-trial)/Trials 
+    if TA <= torch.rand(1) and train_delta <= 0:
+        acqf_para = acqf_para * 0.5
+    if TA <= torch.rand(1) and train_delta.item() > 0:
+        acqf_para = acqf_para * 0.8
+    # else:
+    #     if trial/Trials > torch.rand(1):
+    #         acqf_para = acqf_para * 1.05
     
 
     if False:
@@ -205,7 +221,7 @@ plt.show()
 # fig.savefig(f_path+fr_path+'Optimization_loop.jpg', dpi=600)
 
 fig1, ax1 = plt.subplots()
-y_plot = abs(train_y_origin.numpy())*1000
+y_plot = abs(train_y_origin.numpy())
 l1 = ax1.plot(y_plot, marker='.')
 ax1.set_yscale('log')
 #ax1.set_ylim(10**-(3.7), 10**-(1.6))
@@ -213,76 +229,6 @@ ax1.set_xlabel('Loop iteration', fontsize='large')
 ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # fig1.savefig(f_path+fr_path+'Warpage_reduction.jpg', dpi=600)
 
-## %%
-# def heatmap(data, row_labels, col_labels, row_name, col_name, fig_name, ax=None,
-#             cbar_kw={}, cbarlabel="", **kwargs):
-#     """
-#     Create a heatmap from a numpy array and two lists of labels.
-
-#     Parameters
-#     ----------
-#     data
-#         A 2D numpy array of shape (N, M).
-#     row_labels
-#         A list or array of length N with the labels for the rows.
-#     col_labels
-#         A list or array of length M with the labels for the columns.
-#     ax
-#         A `matplotlib.axes.Axes` instance to which the heatmap is plotted.  If
-#         not provided, use current axes or create a new one.  Optional.
-#     cbar_kw
-#         A dictionary with arguments to `matplotlib.Figure.colorbar`.  Optional.
-#     cbarlabel
-#         The label for the colorbar.  Optional.
-#     **kwargs
-#         All other arguments are forwarded to `imshow`.
-#     """
-
-#     if not ax:
-#         fig, ax = plt.subplots()
-
-#     # Plot the heatmap
-#     im = ax.imshow(data, **kwargs)
-
-#     # Create colorbar
-#     cbar = ax.figure.colorbar(im, ax=ax, **cbar_kw)
-#     cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
-
-#     # We want to show all ticks...
-#     ax.set_xticks(np.arange(data.shape[1]))
-#     ax.set_yticks(np.arange(data.shape[0]))
-#     # ... and label them with the respective list entries.
-#     ax.set_xticklabels(col_labels)
-#     ax.set_yticklabels(row_labels)
-
-#     # Let the horizontal axes labeling appear on top.
-#     ax.tick_params(top=False, bottom=True,
-#                    labeltop=False, labelbottom=True)
-
-#     # Rotate the tick labels and set their alignment.
-#     plt.setp(ax.get_xticklabels(), rotation=90, ha="right",
-#              rotation_mode="anchor")
-
-#     # Turn spines off and create white grid.
-#     for edge, spine in ax.spines.items():
-#         spine.set_visible(False)
-
-#     ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
-#     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-#     #ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
-#     ax.tick_params(which="minor", top=False, left=False, bottom=False)
-#     ax.set_title(fig_name)
-#     ax.set_xlabel(row_name)
-#     ax.set_ylabel(col_name)
-#     return fig, im, cbar
-
-## %%
-# fig, im, cbar = heatmap(abs(full_scan[:, :, -1]), x2_ticks, x1_ticks, 'EMC CTE (ppm)', 'EMC thickness (um)', 'Absolute warpage mapping (um)',
-#                    cmap="PuBu_r", cbarlabel="Abasolute warpage (um)")
-
-# # Create and change directory accordingly
-# fig.savefig(f_path+'/ucb_1/1/h_emc_vs_cte_emc_mapping_pixel.jpg', dpi=500, bbox_inches = 'tight')
-## %%
 
 
 # %%
