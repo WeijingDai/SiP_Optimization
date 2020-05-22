@@ -109,7 +109,7 @@ best_observed_value = train_y.min()
 verbose = False
 # %%
 # Bayesian loop
-Trials = 20
+Trials = 1
 for trial in range(1, Trials+1):
 
     print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
@@ -158,6 +158,7 @@ for trial in range(1, Trials+1):
     ax.scatter((train_x[:,1].numpy() * (cte_emc_max - cte_emc_min) + cte_emc_min)/10, 
                train_x[:,0].numpy() * (h_emc_max - h_emc_min) + h_emc_min,
                train_y.numpy().flatten(), color='b', s=20, alpha=1)
+    ax.set_title('Iteration step ' + str(trial))
     ax.set_xlabel("EMC CTE (ppm)")
     ax.set_ylabel("EMC thickness (um)")
     ax.set_zlabel("Squared warpage value")
