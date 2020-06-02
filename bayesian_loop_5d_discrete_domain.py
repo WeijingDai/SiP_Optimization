@@ -74,14 +74,14 @@ design_domain = torch.as_tensor(full_scan[:, 0:n_variables], device=device, dtyp
 #     os.makedirs(f_path_c+fr_path_c)
 # fr_path = 'Random_selection/1_init/ucb_'+directory_list[j]+'/'
 # print(f_path+fr_path)
-acqf_para = 50
+acqf_para = 10
 print('Acquisition parameter = ', acqf_para)
 train_x = torch.as_tensor(train_data[:, 0:-1], dtype=dtype, device=device)
 train_x_total = torch.as_tensor(full_scan[:, 0:-1], dtype=dtype, device=device)
 train_y_origin = torch.as_tensor(train_data[:, -1], dtype=dtype, device=device).unsqueeze(1)
 train_y = train_y_origin**2
 best_observed_value = torch.sqrt(train_y.min())
-
+acqf_para_list = []
 verbose = False
 
 # Bayesian loop
@@ -91,6 +91,7 @@ for trial in range(1, Trials+1):
     #print(f"\nTrial {trial:>2} of {Trials} ", end="\n")  
     #print(f"Current best: {best_observed_value} ", end="\n")
     print(acqf_para)
+    acqf_para_list.append(acqf_para)
     # fit the model
     train_mu = train_y.mean()
     train_sig = train_y.std()
@@ -183,7 +184,10 @@ ax1.set_ylabel('Absolute warpage (um)', fontsize='large')
 # fig1.savefig(f_path+fr_path+'Warpage_reduction.jpg', dpi=600)
 
 # %%
-fig, ax = plt.subplots()
-ax.scatter(full_scan[:, 4], full_scan[:, -1])
+fig2, ax2 = plt.subplots()
+l2 = ax2.plot(acqf_para_list, marker='*', c='g')
+#ax2.set_yscale('log')
+ax2.set_xlabel('Loop iteration', fontsize='large')
+ax2.set_ylabel('Acquisition function parameter')
 
 # %%
