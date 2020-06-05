@@ -157,7 +157,7 @@ for trial in range(1, Trials+1):
             ((-mu - 1.96 * sigma).min()* train_sig.numpy() + train_mu.numpy(), (-mu + 1.96 * sigma).max()* train_sig.numpy() + train_mu.numpy()), color='r')
     ax.scatter((train_x[:,1].numpy() * (cte_emc_max - cte_emc_min) + cte_emc_min)/10, 
                train_x[:,0].numpy() * (h_emc_max - h_emc_min) + h_emc_min,
-               train_y.numpy().flatten(), color='b', s=20, alpha=1)
+               train_y.numpy().flatten(), color='b', s=40, alpha=1)
     ax.set_title('Iteration step ' + str(trial))
     ax.set_xlabel("EMC CTE (ppm)")
     ax.set_ylabel("EMC thickness (um)")
